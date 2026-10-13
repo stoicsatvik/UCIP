@@ -126,3 +126,19 @@ def test_burst_sampling_does_not_fake_daily_coverage(tmp_path):
     result = analyze(sites, readings)
     assert result["pairs"][0]["status"] == "insufficient_valid_days"
     assert result["pair_agreement"] is None
+
+
+def test_eight_day_campaign_is_inconclusive(tmp_path):
+    sp, op = fixture(tmp_path, days=4)
+    sites, obs = pd.read_csv(sp), pd.read_csv(op)
+    obs["timestamp_local"] = obs.timestamp_local.map(
+        lambda s: (datetime.fromisoformat(s) + timedelta(days=4 if s.startswith("2026-10-04") else 0)).isoformat()
+    )
+    sites = pd.concat([sites.assign(pair_id=f"p{i}", site_id=lambda df: df.site_id + str(i)) for i in range(4)], ignore_index=True)
+    obs = pd.concat([obs.assign(site_id=lambda df: df.site_id + str(i)) for i in range(4)], ignore_index=True)
+    sites.to_csv(sp, index=False)
+    obs.to_csv(op, index=False)
+    result = analyze(*_load(sp, op))
+    assert result["pair_agreement"]["eligible_pairs"] == 4
+    assert result["campaign_window"]["calendar_days_spanned"] == 8
+    assert result["pair_agreement"]["falsification_gate"] == "inconclusive_invalid_campaign_window"
