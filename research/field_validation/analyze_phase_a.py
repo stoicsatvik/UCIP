@@ -16,6 +16,7 @@ import pandas as pd
 IST = "Asia/Kolkata"
 MIN_MATCHED_INTERVALS_PER_DAY = 18
 MIN_VALID_DAYS = 4
+MAX_CAMPAIGN_CALENDAR_DAYS = 7
 PREREGISTERED_PAIRS = 4
 BOOTSTRAP_SAMPLES = 2000
 
@@ -59,10 +60,17 @@ def _load(sites_path: Path, obs_path: Path):
 
 def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013):
     rng = np.random.default_rng(seed)
+    # Use every observation, including those outside the analysis hours, so
+    # extra campaign days cannot disappear when the midday filter is applied.
+    campaign_days = ((obs.local.dt.date.max() - obs.local.dt.date.min()).days + 1
+                     if not obs.empty else 0)
+    campaign_valid = 0 < campaign_days <= MAX_CAMPAIGN_CALENDAR_DAYS
     obs = obs.loc[(obs.local.dt.hour >= 12) & (obs.local.dt.hour < 16)].copy()
     obs = obs.merge(sites[["site_id", "calibration_offset_c"]], on="site_id", validate="many_to_one")
     obs["corrected_c"] = obs.temp_c - obs.calibration_offset_c
-    output = {"status": "diagnostic_only_not_HVI_validation", "pairs": [], "pair_agreement": None}
+    output = {"status": "diagnostic_only_not_HVI_validation", "pairs": [], "pair_agreement": None,
+              "campaign_window": {"calendar_days_spanned": int(campaign_days),
+                                  "within_preregistered_seven_day_window": bool(campaign_valid)}}
     for pair_id, pair_sites in sites.groupby("pair_id", sort=True):
         high, low = pair_sites.sort_values(["lst_c", "site_id"], ascending=[False, True]).iloc[:2].to_dict("records")
         lst_diff = float(high["lst_c"] - low["lst_c"])
@@ -104,8 +112,10 @@ def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013):
     eligible = [p for p in output["pairs"] if p["status"] == "descriptive_only"]
     if eligible:
         n_agree = sum(p["agrees_with_LST_direction"] for p in eligible)
-        complete = len(output["pairs"]) == PREREGISTERED_PAIRS and len(eligible) == PREREGISTERED_PAIRS
-        gate = ("inconclusive_incomplete_pilot" if not complete else
+        complete = (len(output["pairs"]) == PREREGISTERED_PAIRS
+                    and len(eligible) == PREREGISTERED_PAIRS)
+        gate = ("inconclusive_invalid_campaign_window" if not campaign_valid else
+                "inconclusive_incomplete_pilot" if not complete else
                 "fail" if n_agree <= PREREGISTERED_PAIRS / 2 else "not_failed_on_observed_pairs")
         output["pair_agreement"] = {"agree": n_agree, "eligible_pairs": len(eligible),
                                     "all_preselected_pairs": len(output["pairs"]),
