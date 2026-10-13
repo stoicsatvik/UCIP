@@ -17,3 +17,7 @@ Freeze sites, inclusion/exclusion criteria, sensor calibration, time handling, s
 ## Reproducibility
 
 Research-only implementation and synthetic tests: `research/field_validation/`. Run `python -m pytest -q research/field_validation/test_analyze_phase_a.py` after installing `numpy`, `pandas`, and `pytest`. No real-world results are bundled.
+
+## Identifier integrity and current validation status
+
+The Phase A CSV loader rejects missing or whitespace-only `site_id` and `pair_id` values before matching observations. Without this guard, pandas may match missing site identifiers and contaminate paired contrasts. This was reproduced with synthetic data. Thirteen synthetic tests passed locally on a prior exported source snapshot with the same correction; the new identifier regression tests are not yet committed. No exact-commit CI run or field measurement has been completed. The PR remains a draft until the regression tests are committed and validated.
