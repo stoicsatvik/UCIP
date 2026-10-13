@@ -27,8 +27,16 @@ def _load(sites_path: Path, obs_path: Path):
         raise ValueError("sites.csv missing required columns")
     if not {"site_id", "timestamp_local", "temp_c"} <= set(obs):
         raise ValueError("observations.csv missing required columns")
-    if sites.site_id.duplicated().any() or sites.pair_id.isna().any():
-        raise ValueError("site_id must be unique and pair_id nonempty")
+    # Missing CSV identifiers can match other missing identifiers in pandas.
+    # Fail closed before matching observations to site metadata.
+    if (sites.site_id.isna().any()
+            or sites.site_id.astype(str).str.strip().eq("").any()
+            or sites.pair_id.isna().any()
+            or sites.pair_id.astype(str).str.strip().eq("").any()
+            or sites.site_id.duplicated().any()):
+        raise ValueError("site_id must be unique and nonempty; pair_id must be nonempty")
+    if obs.site_id.isna().any() or obs.site_id.astype(str).str.strip().eq("").any():
+        raise ValueError("observation site_id must be nonempty")
     if not sites.groupby("pair_id").size().eq(2).all():
         raise ValueError("each pair must contain exactly two sites")
     for col in ("lst_c", "calibration_offset_c"):
