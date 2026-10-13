@@ -21,3 +21,7 @@ Research-only implementation and synthetic tests: `research/field_validation/`. 
 ## Identifier integrity and current validation status
 
 The Phase A CSV loader rejects missing or whitespace-only `site_id` and `pair_id` values before matching observations. Without this guard, pandas may match missing site identifiers and contaminate paired contrasts. This was reproduced with synthetic data. Thirteen synthetic tests passed locally on a prior exported source snapshot with the same correction; the new identifier regression tests are not yet committed. No exact-commit CI run or field measurement has been completed. The PR remains a draft until the regression tests are committed and validated.
+
+## Campaign-window integrity
+
+The analysis now records the calendar-day span of all supplied observations, including readings outside the midday analysis window. A span of more than seven local calendar dates forces `inconclusive_invalid_campaign_window`, even if all four pairs otherwise meet the daily coverage threshold. Descriptive per-pair contrasts remain in the output, including negative results. This is a conservative interpretation of the preregistered seven-day campaign, not evidence that field validation has occurred. The temporal regression suite and exact-commit CI still require verification.
