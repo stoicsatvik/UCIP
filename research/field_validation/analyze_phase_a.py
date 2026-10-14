@@ -8,6 +8,7 @@ Timestamps must include UTC offsets; matching requires exact UTC instants.
 """
 import argparse
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -77,25 +78,35 @@ def _check_deployment_manifest(manifest: dict | None, sites: pd.DataFrame, obs: 
             return "end_not_midnight", None
         if end - start != pd.Timedelta(days=7):
             return "not_seven_full_days", None
-        if sorted(map(str, manifest["site_ids"])) != sorted(map(str, sites.site_id)):
+        site_ids = manifest["site_ids"]
+        if (not isinstance(site_ids, list)
+                or not all(isinstance(site, str) and site.strip() for site in site_ids)
+                or len(site_ids) != len(set(site_ids))):
+            return "invalid_format", None
+        if sorted(site_ids) != sorted(map(str, sites.site_id)):
             return "site_set_mismatch", None
         log = manifest["missingness_log"]
         if not isinstance(log, list) or manifest.get("missingness_log_reviewed") is not True:
             return "missingness_not_reviewed", None
+        observed = set(zip(obs.site_id.astype(str), obs.local.dt.date))
         recorded = set()
         for entry in log:
             site = str(entry["site_id"])
-            day = pd.Timestamp(entry["date"])
+            date_value = entry["date"]
+            if not isinstance(date_value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_value) is None:
+                return "invalid_missingness_entry", None
+            day = pd.Timestamp(date_value)
             if (site not in set(map(str, sites.site_id))
                     or day.tzinfo is not None
                     or not start.date() <= day.date() < end.date()
                     or not isinstance(entry["reason"], str)
-                    or not entry["reason"].strip()):
+                    or not entry["reason"].strip()
+                    or (site, day.date()) in observed
+                    or (site, day.date()) in recorded):
                 return "invalid_missingness_entry", None
             recorded.add((site, day.date()))
         if not obs.empty and ((obs.local < start) | (obs.local >= end)).any():
             return "observations_outside_deployment", None
-        observed = set(zip(obs.site_id.astype(str), obs.local.dt.date))
         for site in map(str, sites.site_id):
             for day in pd.date_range(start, periods=7, freq="D"):
                 if (site, day.date()) not in observed and (site, day.date()) not in recorded:
@@ -160,20 +171,26 @@ def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013,
             draws = np.mean(rng.choice(valid, size=(BOOTSTRAP_SAMPLES, len(valid)), replace=True), axis=1)
             lo, hi = np.quantile(draws, [0.025, 0.975])
             item.update(status="descriptive_only", air_contrast_c=round(contrast, 5),
-                        agrees_with_LST_direction=bool(contrast > 0),
+                        agrees_with_LST_direction=(True if contrast > 0 else
+                                                   False if contrast < 0 else None),
                         day_block_bootstrap_95pct_c=[round(float(lo), 5), round(float(hi), 5)])
         output["pairs"].append(item)
     eligible = [p for p in output["pairs"] if p["status"] == "descriptive_only"]
     if eligible:
-        n_agree = sum(p["agrees_with_LST_direction"] for p in eligible)
+        n_agree = sum(p["agrees_with_LST_direction"] is True for p in eligible)
+        n_contrary = sum(p["agrees_with_LST_direction"] is False for p in eligible)
+        n_neutral = sum(p["agrees_with_LST_direction"] is None for p in eligible)
         complete = (len(output["pairs"]) == PREREGISTERED_PAIRS
                     and len(eligible) == PREREGISTERED_PAIRS)
         gate = ("inconclusive_invalid_campaign_window" if not campaign_valid else
                 "inconclusive_missing_deployment_manifest" if manifest_status == "missing" else
                 "inconclusive_invalid_deployment_manifest" if manifest_status != "declared_seven_days_not_independently_verified" else
                 "inconclusive_incomplete_pilot" if not complete else
-                "fail" if n_agree <= PREREGISTERED_PAIRS / 2 else "not_failed_on_observed_pairs")
-        output["pair_agreement"] = {"agree": n_agree, "eligible_pairs": len(eligible),
+                "fail" if n_contrary >= 2 else
+                "inconclusive_zero_air_contrast" if n_neutral else
+                "not_failed_on_observed_pairs")
+        output["pair_agreement"] = {"agree": n_agree, "contrary": n_contrary, "neutral": n_neutral,
+                                    "eligible_pairs": len(eligible),
                                     "all_preselected_pairs": len(output["pairs"]),
                                     "falsification_gate": gate,
                                     "warning": "Descriptive feasibility only; small nonrandom site sample."}
