@@ -46,7 +46,7 @@ def declared_manifest(sites, observations, *, log_missing=True):
 
 def test_matching_and_calibration(tmp_path):
     sites, obs = _load(*fixture(tmp_path))
-    result = analyze(sites, obs)
+    result = analyze(sites, obs, manifest=declared_manifest(sites, obs))
     assert result["pairs"][0]["valid_days"] == 7
     assert result["pairs"][0]["air_contrast_c"] == pytest.approx(1)
     assert result["pair_agreement"]["falsification_gate"] == "inconclusive_incomplete_pilot"
@@ -54,7 +54,7 @@ def test_matching_and_calibration(tmp_path):
 
 def test_negative_result_is_retained(tmp_path):
     sites, obs = _load(*fixture(tmp_path, direction=-1))
-    result = analyze(sites, obs)
+    result = analyze(sites, obs, manifest=declared_manifest(sites, obs))
     assert result["pairs"][0]["agrees_with_LST_direction"] is False
     assert result["pair_agreement"]["falsification_gate"] == "inconclusive_incomplete_pilot"
 
@@ -123,7 +123,8 @@ def test_three_eligible_of_four_is_inconclusive(tmp_path):
     obs = obs.loc[obs.site_id != "B4"]
     sites.to_csv(sp, index=False)
     obs.to_csv(op, index=False)
-    result = analyze(*_load(sp, op))
+    loaded_sites, loaded_obs = _load(sp, op)
+    result = analyze(loaded_sites, loaded_obs, manifest=declared_manifest(loaded_sites, loaded_obs))
     assert result["pair_agreement"]["eligible_pairs"] == 3
     assert result["pair_agreement"]["falsification_gate"] == "inconclusive_incomplete_pilot"
 
@@ -224,3 +225,27 @@ def test_observations_outside_declared_window_rejected(tmp_path):
     manifest["deployment_end_local"] = "2026-10-09T00:00:00+05:30"
     result = analyze(sites, obs, manifest=manifest)
     assert result["campaign_window"]["deployment_manifest_status"] == "observations_outside_deployment"
+
+
+def test_manifest_site_ids_require_explicit_list(tmp_path):
+    sites, obs = _load(*fixture(tmp_path))
+    manifest = declared_manifest(sites, obs)
+    manifest["site_ids"] = "AB"
+    result = analyze(sites, obs, manifest=manifest)
+    assert result["campaign_window"]["deployment_manifest_status"] == "invalid_format"
+
+
+def test_missingness_log_rejects_timestamp_instead_of_date(tmp_path):
+    sites, obs = _load(*fixture(tmp_path, days=4))
+    manifest = declared_manifest(sites, obs)
+    manifest["missingness_log"][0]["date"] += "T23:59:00"
+    result = analyze(sites, obs, manifest=manifest)
+    assert result["campaign_window"]["deployment_manifest_status"] == "invalid_missingness_entry"
+
+
+def test_missingness_log_rejects_duplicate_site_day(tmp_path):
+    sites, obs = _load(*fixture(tmp_path, days=4))
+    manifest = declared_manifest(sites, obs)
+    manifest["missingness_log"].append(dict(manifest["missingness_log"][0]))
+    result = analyze(sites, obs, manifest=manifest)
+    assert result["campaign_window"]["deployment_manifest_status"] == "invalid_missingness_entry"
