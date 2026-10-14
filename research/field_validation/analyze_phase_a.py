@@ -58,8 +58,60 @@ def _load(sites_path: Path, obs_path: Path):
     return sites, obs
 
 
-def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013):
+
+def _check_deployment_manifest(manifest: dict | None, sites: pd.DataFrame, obs: pd.DataFrame):
+    """Validate declared deployment provenance, not physical sensor operation."""
+    if manifest is None:
+        return "missing", None
+    if not isinstance(manifest, dict):
+        return "invalid_format", None
+    try:
+        start = pd.Timestamp(manifest["deployment_start_local"])
+        end = pd.Timestamp(manifest["deployment_end_local"])
+        if start.tzinfo is None or end.tzinfo is None:
+            return "invalid_timezone", None
+        start, end = start.tz_convert(IST), end.tz_convert(IST)
+        if (start.hour, start.minute, start.second, start.microsecond) != (0, 0, 0, 0):
+            return "start_not_midnight", None
+        if (end.hour, end.minute, end.second, end.microsecond) != (0, 0, 0, 0):
+            return "end_not_midnight", None
+        if end - start != pd.Timedelta(days=7):
+            return "not_seven_full_days", None
+        if sorted(map(str, manifest["site_ids"])) != sorted(map(str, sites.site_id)):
+            return "site_set_mismatch", None
+        log = manifest["missingness_log"]
+        if not isinstance(log, list) or manifest.get("missingness_log_reviewed") is not True:
+            return "missingness_not_reviewed", None
+        recorded = set()
+        for entry in log:
+            site = str(entry["site_id"])
+            day = pd.Timestamp(entry["date"])
+            if (site not in set(map(str, sites.site_id))
+                    or day.tzinfo is not None
+                    or not start.date() <= day.date() < end.date()
+                    or not isinstance(entry["reason"], str)
+                    or not entry["reason"].strip()):
+                return "invalid_missingness_entry", None
+            recorded.add((site, day.date()))
+        if not obs.empty and ((obs.local < start) | (obs.local >= end)).any():
+            return "observations_outside_deployment", None
+        observed = set(zip(obs.site_id.astype(str), obs.local.dt.date))
+        for site in map(str, sites.site_id):
+            for day in pd.date_range(start, periods=7, freq="D"):
+                if (site, day.date()) not in observed and (site, day.date()) not in recorded:
+                    return "unlogged_missing_site_day", None
+        return "declared_seven_days_not_independently_verified", {
+            "start_local": start.isoformat(),
+            "end_local_exclusive": end.isoformat(),
+            "missingness_entries": len(log)}
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return "invalid_format", None
+
+
+def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013,
+            manifest: dict | None = None):
     rng = np.random.default_rng(seed)
+    manifest_status, manifest_details = _check_deployment_manifest(manifest, sites, obs)
     # Use every observation, including those outside the analysis hours, so
     # extra campaign days cannot disappear when the midday filter is applied.
     campaign_days = ((obs.local.dt.date.max() - obs.local.dt.date.min()).days + 1
@@ -70,7 +122,9 @@ def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013):
     obs["corrected_c"] = obs.temp_c - obs.calibration_offset_c
     output = {"status": "diagnostic_only_not_HVI_validation", "pairs": [], "pair_agreement": None,
               "campaign_window": {"calendar_days_spanned": int(campaign_days),
-                                  "within_preregistered_seven_day_window": bool(campaign_valid)}}
+                                  "within_preregistered_seven_day_window": bool(campaign_valid),
+                                  "deployment_manifest_status": manifest_status,
+                                  "deployment_manifest_details": manifest_details}}
     for pair_id, pair_sites in sites.groupby("pair_id", sort=True):
         high, low = pair_sites.sort_values(["lst_c", "site_id"], ascending=[False, True]).iloc[:2].to_dict("records")
         lst_diff = float(high["lst_c"] - low["lst_c"])
@@ -115,6 +169,8 @@ def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013):
         complete = (len(output["pairs"]) == PREREGISTERED_PAIRS
                     and len(eligible) == PREREGISTERED_PAIRS)
         gate = ("inconclusive_invalid_campaign_window" if not campaign_valid else
+                "inconclusive_missing_deployment_manifest" if manifest_status == "missing" else
+                "inconclusive_invalid_deployment_manifest" if manifest_status != "declared_seven_days_not_independently_verified" else
                 "inconclusive_incomplete_pilot" if not complete else
                 "fail" if n_agree <= PREREGISTERED_PAIRS / 2 else "not_failed_on_observed_pairs")
         output["pair_agreement"] = {"agree": n_agree, "eligible_pairs": len(eligible),
@@ -128,9 +184,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sites", type=Path)
     parser.add_argument("observations", type=Path)
+    parser.add_argument("--manifest", type=Path, help="JSON declaration of deployment and missingness")
     args = parser.parse_args()
     sites, obs = _load(args.sites, args.observations)
-    print(json.dumps(analyze(sites, obs), indent=2))
+    manifest = json.loads(args.manifest.read_text()) if args.manifest else None
+    print(json.dumps(analyze(sites, obs, manifest=manifest), indent=2))
 
 
 if __name__ == "__main__":
