@@ -85,6 +85,20 @@ def _check_deployment_manifest(manifest: dict | None, sites: pd.DataFrame, obs: 
             return "invalid_format", None
         if sorted(site_ids) != sorted(map(str, sites.site_id)):
             return "site_set_mismatch", None
+        # Uncertainty bounds must be independently justified and frozen before
+        # field outcomes are examined. They are not inferred from this dataset.
+        air_bound = manifest.get("direction_uncertainty_c")
+        air_basis = manifest.get("direction_uncertainty_basis")
+        if (isinstance(air_bound, bool) or not isinstance(air_bound, (int, float))
+                or not np.isfinite(air_bound) or air_bound <= 0
+                or not isinstance(air_basis, str) or not air_basis.strip()):
+            return "invalid_direction_uncertainty", None
+        lst_bound = manifest.get("lst_direction_uncertainty_c")
+        lst_basis = manifest.get("lst_direction_uncertainty_basis")
+        if (isinstance(lst_bound, bool) or not isinstance(lst_bound, (int, float))
+                or not np.isfinite(lst_bound) or lst_bound <= 0
+                or not isinstance(lst_basis, str) or not lst_basis.strip()):
+            return "invalid_lst_direction_uncertainty", None
         log = manifest["missingness_log"]
         if not isinstance(log, list) or manifest.get("missingness_log_reviewed") is not True:
             return "missingness_not_reviewed", None
@@ -114,7 +128,11 @@ def _check_deployment_manifest(manifest: dict | None, sites: pd.DataFrame, obs: 
         return "declared_seven_days_not_independently_verified", {
             "start_local": start.isoformat(),
             "end_local_exclusive": end.isoformat(),
-            "missingness_entries": len(log)}
+            "missingness_entries": len(log),
+            "direction_uncertainty_c": float(air_bound),
+            "direction_uncertainty_basis": air_basis,
+            "lst_direction_uncertainty_c": float(lst_bound),
+            "lst_direction_uncertainty_basis": lst_basis}
     except (KeyError, TypeError, ValueError, OverflowError):
         return "invalid_format", None
 
@@ -123,6 +141,10 @@ def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013,
             manifest: dict | None = None):
     rng = np.random.default_rng(seed)
     manifest_status, manifest_details = _check_deployment_manifest(manifest, sites, obs)
+    air_bound = (manifest_details["direction_uncertainty_c"]
+                 if manifest_details is not None else None)
+    lst_bound = (manifest_details["lst_direction_uncertainty_c"]
+                 if manifest_details is not None else None)
     # Use every observation, including those outside the analysis hours, so
     # extra campaign days cannot disappear when the midday filter is applied.
     campaign_days = ((obs.local.dt.date.max() - obs.local.dt.date.min()).days + 1
@@ -141,6 +163,12 @@ def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013,
         lst_diff = float(high["lst_c"] - low["lst_c"])
         if lst_diff <= 0:
             output["pairs"].append({"pair_id": str(pair_id), "status": "unidentifiable_equal_LST"})
+            continue
+        if lst_bound is not None and lst_diff <= lst_bound:
+            output["pairs"].append({"pair_id": str(pair_id),
+                                    "status": "unidentifiable_LST_within_uncertainty",
+                                    "lst_contrast_c": lst_diff,
+                                    "lst_direction_uncertainty_c": lst_bound})
             continue
         pair_obs = obs[obs.site_id.isin([high["site_id"], low["site_id"]])]
         wide = pair_obs.pivot(index="utc", columns="site_id", values="corrected_c")
@@ -170,9 +198,12 @@ def analyze(sites: pd.DataFrame, obs: pd.DataFrame, *, seed: int = 20261013,
             contrast = float(np.mean(valid))
             draws = np.mean(rng.choice(valid, size=(BOOTSTRAP_SAMPLES, len(valid)), replace=True), axis=1)
             lo, hi = np.quantile(draws, [0.025, 0.975])
+            direction = (None if air_bound is not None and abs(contrast) <= air_bound
+                         else True if contrast > 0 else False if contrast < 0 else None)
             item.update(status="descriptive_only", air_contrast_c=round(contrast, 5),
-                        agrees_with_LST_direction=(True if contrast > 0 else
-                                                   False if contrast < 0 else None),
+                        air_contrast_unrounded_c=contrast,
+                        direction_uncertainty_c=air_bound,
+                        agrees_with_LST_direction=direction,
                         day_block_bootstrap_95pct_c=[round(float(lo), 5), round(float(hi), 5)])
         output["pairs"].append(item)
     eligible = [p for p in output["pairs"] if p["status"] == "descriptive_only"]
