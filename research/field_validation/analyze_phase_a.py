@@ -85,6 +85,27 @@ def _check_deployment_manifest(manifest: dict | None, sites: pd.DataFrame, obs: 
             return "invalid_format", None
         if sorted(site_ids) != sorted(map(str, sites.site_id)):
             return "site_set_mismatch", None
+        # Site membership alone does not preserve the preregistered matching.
+        # This is a structural check, not independent timestamped preregistration.
+        declared_pairs = manifest.get("preselected_pairs")
+        if not isinstance(declared_pairs, list):
+            return "invalid_preselected_pairs", None
+        expected_pairs = {str(pid): sorted(group.site_id.astype(str).tolist())
+                          for pid, group in sites.groupby("pair_id")}
+        observed_pairs = {}
+        for pair in declared_pairs:
+            if not isinstance(pair, dict):
+                return "invalid_preselected_pairs", None
+            pid, members = pair.get("pair_id"), pair.get("site_ids")
+            if (not isinstance(pid, str) or not pid.strip()
+                    or pid in observed_pairs or not isinstance(members, list)
+                    or len(members) != 2
+                    or not all(isinstance(x, str) and x.strip() for x in members)
+                    or len(set(members)) != 2):
+                return "invalid_preselected_pairs", None
+            observed_pairs[pid] = sorted(members)
+        if observed_pairs != expected_pairs:
+            return "preselected_pair_set_mismatch", None
         # Uncertainty bounds must be independently justified and frozen before
         # field outcomes are examined. They are not inferred from this dataset.
         air_bound = manifest.get("direction_uncertainty_c")

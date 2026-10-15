@@ -40,6 +40,10 @@ def declared_manifest(sites, observations, *, log_missing=True):
     return {"deployment_start_local": start.isoformat(),
             "deployment_end_local": (start + timedelta(days=7)).isoformat(),
             "site_ids": sites.site_id.astype(str).tolist(),
+            "preselected_pairs": [
+                {"pair_id": str(pid), "site_ids": group.site_id.astype(str).tolist()}
+                for pid, group in sites.groupby("pair_id")
+            ],
             "direction_uncertainty_c": 0.05,
             "direction_uncertainty_basis": "illustrative synthetic test bound only",
             "lst_direction_uncertainty_c": 0.05,
@@ -253,3 +257,52 @@ def test_missingness_log_rejects_duplicate_site_day(tmp_path):
     manifest["missingness_log"].append(dict(manifest["missingness_log"][0]))
     result = analyze(sites, obs, manifest=manifest)
     assert result["campaign_window"]["deployment_manifest_status"] == "invalid_missingness_entry"
+
+
+def test_manifest_requires_explicit_preselected_pairs(tmp_path):
+    sites, obs = _load(*fixture(tmp_path))
+    manifest = declared_manifest(sites, obs)
+    del manifest["preselected_pairs"]
+    result = analyze(sites, obs, manifest=manifest)
+    assert result["campaign_window"]["deployment_manifest_status"] == "invalid_preselected_pairs"
+
+
+def test_manifest_rejects_duplicate_and_malformed_pairs(tmp_path):
+    sites, obs = _load(*fixture(tmp_path))
+    for bad in (
+        [{"pair_id": "p1", "site_ids": ["A", "B"]},
+         {"pair_id": "p1", "site_ids": ["A", "B"]}],
+        [{"pair_id": "p1", "site_ids": ["A", "A"]}],
+        [{"pair_id": "p1", "site_ids": "AB"}],
+    ):
+        manifest = declared_manifest(sites, obs)
+        manifest["preselected_pairs"] = bad
+        result = analyze(sites, obs, manifest=manifest)
+        assert result["campaign_window"]["deployment_manifest_status"] == "invalid_preselected_pairs"
+
+
+def test_reassigning_same_sites_invalidates_preregistered_pairs(tmp_path):
+    sp, op = fixture(tmp_path)
+    original_sites, original_obs = pd.read_csv(sp), pd.read_csv(op)
+    sites = pd.concat([
+        original_sites.assign(pair_id=f"p{i}", site_id=lambda frame: frame.site_id + str(i))
+        for i in (1, 2)
+    ], ignore_index=True)
+    obs = pd.concat([
+        original_obs.assign(site_id=lambda frame: frame.site_id + str(i))
+        for i in (1, 2)
+    ], ignore_index=True)
+    sites.to_csv(sp, index=False)
+    obs.to_csv(op, index=False)
+    sites, obs = _load(sp, op)
+    manifest = declared_manifest(sites, obs)
+    assert analyze(sites, obs, manifest=manifest)["campaign_window"]["deployment_manifest_status"] == (
+        "declared_seven_days_not_independently_verified"
+    )
+    tampered = sites.copy()
+    tampered.loc[tampered.site_id == "B1", "pair_id"] = "p2"
+    tampered.loc[tampered.site_id == "B2", "pair_id"] = "p1"
+    result = analyze(tampered, obs, manifest=manifest)
+    assert result["campaign_window"]["deployment_manifest_status"] == "preselected_pair_set_mismatch"
+    assert result["pair_agreement"]["falsification_gate"] == "inconclusive_invalid_deployment_manifest"
+    assert len(result["pairs"]) == 2  # Retain descriptive contrasts, even for invalid declarations.

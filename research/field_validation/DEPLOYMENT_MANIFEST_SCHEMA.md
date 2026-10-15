@@ -49,3 +49,23 @@ The deployment manifest still does not lock the mapping of sites to matched
 pairs. Reassigning the same eight sites can change the aggregate decision.
 Before interpreting a field result, require a frozen pair-to-site mapping,
 regression tests for reassignment, and passing exact-commit CI.
+
+
+## Frozen pair-mapping contract (15 October 2026)
+
+The manifest now requires `preselected_pairs`, an explicit list of objects with
+`pair_id` and exactly two distinct `site_ids` each. Pair IDs must be unique,
+and the declared mapping must exactly match the analysis site table.
+Missing, malformed, duplicate, or mismatched mappings force an inconclusive
+aggregate decision while preserving descriptive results.
+
+This prevents silently changing the sites CSV without also changing the
+manifest. **It is not proof of prospective preregistration**: a party controlling
+both files could rewrite both after seeing outcomes. Any field study must
+publish an immutable, independently timestamped protocol/manifest hash before
+data collection. Synthetic uncertainty bounds in the tests are illustrative,
+not calibrated field thresholds. No field evidence or deployment is claimed.
+
+The dedicated research CI workflow runs synthetic pytest on branch pushes.
+Passing tests would establish software behavior for that exact revision only,
+not scientific validity or deployment provenance.
