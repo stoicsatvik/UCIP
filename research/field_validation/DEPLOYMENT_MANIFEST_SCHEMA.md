@@ -36,3 +36,16 @@ no exact-commit CI claim is made. Keep this PR in draft.
 Run `python -m pytest -q research/field_validation/test_analyze_phase_a.py`
 after correcting the fixture. Add dedicated CI for the research suite. No
 field data or human validation is included.
+
+## Synthetic uncertainty fixture update (15 October 2026)
+
+The test helper now declares illustrative 0.05°C air and LST direction
+uncertainty bounds with explicit synthetic-only rationale. These are not
+empirical sensor uncertainty estimates and must not be used to justify field
+claims. This change fixes the fixture contract but does not establish that
+the exact committed branch passes tests.
+
+The deployment manifest still does not lock the mapping of sites to matched
+pairs. Reassigning the same eight sites can change the aggregate decision.
+Before interpreting a field result, require a frozen pair-to-site mapping,
+regression tests for reassignment, and passing exact-commit CI.
