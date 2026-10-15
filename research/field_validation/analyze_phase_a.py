@@ -23,8 +23,10 @@ BOOTSTRAP_SAMPLES = 2000
 
 
 def _load(sites_path: Path, obs_path: Path):
-    sites = pd.read_csv(sites_path)
-    obs = pd.read_csv(obs_path)
+    # IDs are opaque labels, not numbers or pandas missing-value sentinels.
+    # Preserve leading zeros and literal values such as NA and NULL.
+    sites = pd.read_csv(sites_path, dtype={"pair_id": str, "site_id": str}, keep_default_na=False)
+    obs = pd.read_csv(obs_path, dtype={"site_id": str}, keep_default_na=False)
     if not {"pair_id", "site_id", "lst_c", "calibration_offset_c"} <= set(sites):
         raise ValueError("sites.csv missing required columns")
     if not {"site_id", "timestamp_local", "temp_c"} <= set(obs):

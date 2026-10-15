@@ -306,3 +306,35 @@ def test_reassigning_same_sites_invalidates_preregistered_pairs(tmp_path):
     assert result["campaign_window"]["deployment_manifest_status"] == "preselected_pair_set_mismatch"
     assert result["pair_agreement"]["falsification_gate"] == "inconclusive_invalid_deployment_manifest"
     assert len(result["pairs"]) == 2  # Retain descriptive contrasts, even for invalid declarations.
+
+
+@pytest.mark.parametrize("site_id", ["001", "NA", "NULL", "N/A", "nan"])
+def test_site_identifiers_are_opaque_csv_strings(tmp_path, site_id):
+    sp, op = fixture(tmp_path)
+    sites = pd.read_csv(sp)
+    obs = pd.read_csv(op)
+    sites.loc[sites.site_id == "A", "site_id"] = site_id
+    obs.loc[obs.site_id == "A", "site_id"] = site_id
+    sites.loc[:, "pair_id"] = "001"
+    sites.to_csv(sp, index=False)
+    obs.to_csv(op, index=False)
+    loaded_sites, loaded_obs = _load(sp, op)
+    assert set(loaded_sites.site_id) == {site_id, "B"}
+    assert set(loaded_obs.site_id) == {site_id, "B"}
+    assert loaded_sites.pair_id.tolist() == ["001", "001"]
+    report = analyze(loaded_sites, loaded_obs,
+                     manifest=declared_manifest(loaded_sites, loaded_obs))
+    assert report["pairs"][0]["valid_days"] == 7
+    assert report["campaign_window"]["deployment_manifest_status"] == (
+        "declared_seven_days_not_independently_verified"
+    )
+
+
+@pytest.mark.parametrize("bad_id", ["", "   "])
+def test_blank_site_identifiers_still_fail_closed(tmp_path, bad_id):
+    sp, op = fixture(tmp_path)
+    sites = pd.read_csv(sp)
+    sites.loc[sites.site_id == "A", "site_id"] = bad_id
+    sites.to_csv(sp, index=False)
+    with pytest.raises(ValueError, match="nonempty"):
+        _load(sp, op)

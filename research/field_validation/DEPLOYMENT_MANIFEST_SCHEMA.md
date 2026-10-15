@@ -69,3 +69,22 @@ not calibrated field thresholds. No field evidence or deployment is claimed.
 The dedicated research CI workflow runs synthetic pytest on branch pushes.
 Passing tests would establish software behavior for that exact revision only,
 not scientific validity or deployment provenance.
+
+## Opaque CSV identifiers and inferential limits (16 October 2026)
+
+CSV `pair_id` and `site_id` are categorical identifiers. Import them as strings
+without pandas' default missing-value token coercion: `001` must remain distinct
+from `1`, and literal `NA`, `NULL`, `N/A`, and `nan` are valid labels.
+Truly empty or whitespace-only identifiers remain invalid. The synthetic
+regression suite checks identifier preservation, pair-manifest matching,
+and the existing missing-ID rejection contract.
+
+The day-block bootstrap interval is **descriptive**. A preregistered
+direction-count rule can return `fail` even when an individual pair's
+bootstrap interval crosses zero. That result must not be described as a
+statistically significant effect or proof of causal validation. Changing the
+falsification rule after observing outcomes would be post-hoc; report both
+the rule-based decision and interval uncertainty, including negative results.
+
+No field measurements, sensor calibration evidence, or independent
+preregistration timestamp are supplied by these changes.
