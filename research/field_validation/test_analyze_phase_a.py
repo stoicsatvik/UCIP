@@ -40,6 +40,10 @@ def declared_manifest(sites, observations, *, log_missing=True):
     return {"deployment_start_local": start.isoformat(),
             "deployment_end_local": (start + timedelta(days=7)).isoformat(),
             "site_ids": sites.site_id.astype(str).tolist(),
+            "direction_uncertainty_c": 0.05,
+            "direction_uncertainty_basis": "illustrative synthetic test bound only",
+            "lst_direction_uncertainty_c": 0.05,
+            "lst_direction_uncertainty_basis": "illustrative synthetic test bound only",
             "missingness_log_reviewed": True,
             "missingness_log": log}
 
