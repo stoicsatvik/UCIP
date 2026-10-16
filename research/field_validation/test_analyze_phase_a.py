@@ -338,3 +338,15 @@ def test_blank_site_identifiers_still_fail_closed(tmp_path, bad_id):
     sites.to_csv(sp, index=False)
     with pytest.raises(ValueError, match="nonempty"):
         _load(sp, op)
+
+
+@pytest.mark.parametrize("bad_site_id", [1, 1.0, True, {"site_id": "A"}])
+def test_missingness_log_rejects_nonstring_site_identifiers(tmp_path, bad_site_id):
+    """Opaque JSON identifiers must not be coerced to CSV site labels."""
+    sites, obs = _load(*fixture(tmp_path, days=4))
+    manifest = declared_manifest(sites, obs)
+    assert manifest["missingness_log"]
+    manifest["missingness_log"][0]["site_id"] = bad_site_id
+    result = analyze(sites, obs, manifest=manifest)
+    assert result["campaign_window"]["deployment_manifest_status"] == "invalid_missingness_entry"
+    assert result["pair_agreement"]["falsification_gate"] == "inconclusive_invalid_deployment_manifest"
