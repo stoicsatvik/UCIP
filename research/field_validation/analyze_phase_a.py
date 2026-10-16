@@ -128,7 +128,11 @@ def _check_deployment_manifest(manifest: dict | None, sites: pd.DataFrame, obs: 
         observed = set(zip(obs.site_id.astype(str), obs.local.dt.date))
         recorded = set()
         for entry in log:
-            site = str(entry["site_id"])
+            if not isinstance(entry, dict):
+                return "invalid_missingness_entry", None
+            site = entry.get("site_id")
+            if not isinstance(site, str) or not site.strip():
+                return "invalid_missingness_entry", None
             date_value = entry["date"]
             if not isinstance(date_value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", date_value) is None:
                 return "invalid_missingness_entry", None
