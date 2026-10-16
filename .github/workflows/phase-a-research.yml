@@ -1,0 +1,24 @@
+name: UCIP Phase A research checks
+on:
+  push:
+    branches:
+      - research/uncertainty-gate-20261015
+    paths:
+      - research/field_validation/**
+      - .github/workflows/phase-a-research.yml
+  pull_request:
+    paths:
+      - research/field_validation/**
+      - .github/workflows/phase-a-research.yml
+jobs:
+  synthetic-regression:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --disable-pip-version-check numpy pandas pytest
+      - run: python -m pytest -q research/field_validation/test_analyze_phase_a.py
