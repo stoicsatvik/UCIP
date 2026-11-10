@@ -27,6 +27,23 @@ class CandidatePathClassificationTests(unittest.TestCase):
         result = classify_paths(["research/field_validation/preflight.sh"], "ci: add upstream replay preflight")
         self.assertEqual(result["category"], "preflight_tooling")
 
+    def test_preflight_workflow_is_classified_by_path(self):
+        result = classify_paths(
+            [".github/workflows/upstream-replay-preflight.yml"],
+            "ci(research): classify replay candidates without modifying refs",
+        )
+        self.assertEqual(result["category"], "preflight_tooling")
+
+    def test_candidate_classifier_and_its_tests_are_tooling(self):
+        result = classify_paths(
+            [
+                "research/field_validation/classify_upstream_replay_candidates.py",
+                "tests/test_ucip_replay_classification.py",
+            ],
+            "research: classify UCIP replay candidates without replaying",
+        )
+        self.assertEqual(result["category"], "preflight_tooling")
+
     def test_empty_commit_is_explicit(self):
         result = classify_paths([], "empty commit")
         self.assertEqual(result["category"], "empty")
