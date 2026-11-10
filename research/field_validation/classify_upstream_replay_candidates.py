@@ -23,6 +23,7 @@ def classify_paths(paths: list[str], subject: str = "") -> dict:
     lowered_paths = [path.lower() for path in paths]
     tooling_markers = (
         ".github/workflows/upstream-replay-preflight",
+        ".github/workflows/upstream-research-replay.yml",
         "research/field_validation/classify_upstream_replay_candidates.py",
         "tests/test_ucip_replay_classification.py",
         "docs/upstream-rewrite-migration-audit-20261110.md",
