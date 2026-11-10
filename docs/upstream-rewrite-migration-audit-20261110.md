@@ -4,6 +4,8 @@
 
 The upstream maintainer reported rewriting history on 2026-10-17 to remove accidentally committed presentation files (AnayDhawan/UCIP discussion #264). The migration audit compares preserved research history with rewritten upstream. Ancestry counts are not unique-patch counts and do not prove incompatibility.
 
+**Current status (10 November 2026):** the reviewed 21-commit research chain has now been replayed in an isolated runner against rewritten upstream `500c3d793b89a538aac7680a270f4ef19c722685`. The current artifact-only workflow passed 33/33 Phase A tests, Python compilation, `git diff --check`, path allowlist and clean-worktree checks. No remote replay branch was pushed. See [the updated replay result](../research/field_validation/UPSTREAM_REPLAY_RESULT_20261110.md) and [draft PR #3](https://github.com/stoicsatvik/UCIP/pull/3). The earlier failed publication attempt is retained below as a separate negative result.
+
 Preserved branch references (do not force-push or delete):
 
 - \`preservation/uncertainty-gate-pre-upstream-rewrite-20261110\`
@@ -77,17 +79,17 @@ The 12 preflight-tooling candidates belong to this audit branch and are not part
 
 Categories are path/subject triage, not dependency closure, semantic equivalence, or replay safety. A research-only label does not mean a commit is independently replayable. The root-count summary counts path roots, not commits. This document's latest numeric snapshot is pinned to run #42849376944 at commit \`ab44d5c\`; later audit-document commits may themselves appear as preflight-tooling candidates in subsequent snapshots.
 
-## Falsifiable replay gate — still not executed
+## Historical pre-replay gate — superseded by the 10 November isolated replay
 
-1. Manually inspect the 17 research-only, 3 research-documentation, and 1 mixed candidate diffs in dependency order. Record prerequisites, shared files, and behavior coupled to product/pipeline code.
+Historical plan before the replay: manually inspect the 17 research-only, 3 research-documentation, and 1 mixed candidate diffs in dependency order. Record prerequisites, shared files, and behavior coupled to product/pipeline code.
 2. Compare rewritten-upstream tree contents and candidate patch contents; path classification alone is insufficient.
 3. Create an isolated replay branch from rewritten upstream. Cherry-pick only verified, relevant patches in dependency order. Record conflicts and skipped patches.
 4. Run preserved and replayed research tests in the same environment; capture dependency versions, exit codes, and negative/edge-case outputs.
 5. Accept replay only if expected research files and tests survive, no unexpected tracked files are removed, and the same fixtures produce equivalent analysis behavior.
 
-**Preservation branches remain untouched. No replay has been performed. Runtime tests on a replay branch have not been run.** No compatibility or scientific-validity claim follows from preservation or path triage alone.
+At the time of this historical snapshot, preservation branches remained untouched and replay/runtime tests had not yet been run. The later isolated replay result is recorded above and in the linked result document. No scientific-validity claim follows from preservation or path triage alone.
 
-Next decision: manually review the 21 research-related candidates and their dependency chain before constructing any replay branch.
+Current next decision: review the artifact and exact replay tree, then obtain independent review before any remote publication. Do not merge, force-push, or modify the three preservation branches.
 
 
 ## Follow-up: 10 November 2026 — refreshed candidate set and dependency review
