@@ -26,11 +26,19 @@ jobs:
           bash research/field_validation/upstream_replay_preflight.sh upstream/main HEAD | tee "$output"
           after="$(git status --porcelain --untracked-files=all)"
           test "$before" = "$after"
-      - name: Preserve preflight output
+      - name: Test candidate path classifier
+        run: python -m unittest discover -s tests -p 'test_ucip_replay_classification.py' -v
+      - name: Classify non-equivalent candidates by changed paths only
+        run: |
+          python -m research.field_validation.classify_upstream_replay_candidates \
+            upstream/main HEAD > "$RUNNER_TEMP/upstream-replay-candidates.json"
+      - name: Preserve read-only preflight and classification
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ucip-read-only-upstream-preflight
-          path: ${{ runner.temp }}/upstream-replay-preflight.txt
+          path: |
+            ${{ runner.temp }}/upstream-replay-preflight.txt
+            ${{ runner.temp }}/upstream-replay-candidates.json
           if-no-files-found: ignore
           retention-days: 14
