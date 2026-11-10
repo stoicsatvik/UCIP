@@ -34,6 +34,13 @@ class CandidatePathClassificationTests(unittest.TestCase):
         )
         self.assertEqual(result["category"], "preflight_tooling")
 
+    def test_research_replay_workflow_is_classified_as_preflight_tooling(self):
+        result = classify_paths(
+            [".github/workflows/upstream-research-replay.yml"],
+            "ci: add isolated upstream replay validation",
+        )
+        self.assertEqual(result["category"], "preflight_tooling")
+
     def test_candidate_classifier_and_its_tests_are_tooling(self):
         result = classify_paths(
             [
