@@ -1,0 +1,173 @@
+name: UCIP isolated research replay validation
+on:
+  push:
+    branches:
+      - research/ucip-replay-preflight-20261110
+    paths:
+      - .github/workflows/upstream-research-replay.yml
+permissions:
+  contents: write
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install research test dependencies
+        run: python -m pip install --disable-pip-version-check numpy pandas pytest
+      - name: Replay the reviewed research-only chain on rewritten upstream
+        shell: bash
+        env:
+          REMOTE_BRANCH: research/ucip-replay-validation-20261110
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/replay"
+          status_file="$RUNNER_TEMP/replay/status.txt"
+          echo "started" > "$status_file"
+          trap 'code=$?; if [ "$code" -ne 0 ]; then echo "failed_exit=$code" >> "$status_file"; fi' EXIT
+
+          source_preflight_sha="$(git rev-parse HEAD)"
+          echo "source_preflight_sha=$source_preflight_sha" > "$RUNNER_TEMP/replay/metadata.txt"
+
+          if git ls-remote --exit-code --heads origin "refs/heads/$REMOTE_BRANCH" >/dev/null 2>&1; then
+            echo "Refusing to overwrite existing replay branch: $REMOTE_BRANCH" | tee -a "$status_file"
+            exit 1
+          fi
+
+          commits=(
+            202cfc2e2349df60164f1373d5650ad2929799ee
+            b66e73954fcbd19cd2880a09a5a844445c60a85d
+            1f4a96e13cf3c15960fb143aefda23109390ed4f
+            8d042063923014b6d36fef6023eb1364b49d117c
+            97e37b44badb7e788375e6b718f09da9b57983d6
+            2c147427f05cd2d5ebbd13b9c26c510f53b993a0
+            3e0b267700982a4af35e3896b44d1d2461d2dd4b
+            b03cf2d4d60b7e1073ba7b67127e7ac37784e77
+            aa0d0050c67171f0a5947cdc8c9238e88edbf560
+            c3beb4051139c58239b2cd63567e6d88eb859a86
+            8fd7606c253cc53798da8a7fa01f12a883d9fa74
+            ffb86aba0ee7bff08a6514dce0877e6f2ef3cb52
+            1e1ede5606c11cd8beeb39a9efa8b3cc61af0aad
+            aa208482a9cc92bfd8a116c228b43d501aab27f3
+            e6a81fc9275e3c97d08383fa6a5341a2fce6111d
+            2152d59d517fabd4458e2d37585c0c9b28529576
+            16b8c92f91230af750f998e347bc2ea8a594f880
+            ca4efc17746029c3bd0bbc8b8ae9f733de3b6c32
+            8f51d00460c6e3222fc503376db4dead23c51577
+            036dbb4f906f2f0cf745525eba14de82a10ea340
+            7975bba4280ff257d7d781043f84f25681dbcb8f
+          )
+
+          # Verify the 21 selected commits form the reviewed linear dependency chain.
+          previous="22482b043bbc7142bf80c55e50aa44f7465fed2e"
+          for sha in "${commits[@]}"; do
+            git cat-file -e "${sha}^{commit}"
+            parent="$(git rev-parse "${sha}^")"
+            if [ "$parent" != "$previous" ]; then
+              echo "Unexpected parent for $sha: $parent (expected $previous)" | tee -a "$status_file"
+              exit 1
+            fi
+            previous="$sha"
+          done
+          test "$previous" = "7975bba4280ff257d7d781043f84f25681dbcb8f"
+
+          # Only the research protocol, analyzer, tests, and its dedicated CI workflow are eligible.
+          allowed_paths=$'docs/UCIP_FIELD_PILOT.md\n.github/workflows/phase-a-research.yml\nresearch/field_validation/DEPLOYMENT_MANIFEST_SCHEMA.md\nresearch/field_validation/analyze_phase_a.py\nresearch/field_validation/test_analyze_phase_a.py'
+          : > "$RUNNER_TEMP/replay/commit-paths.txt"
+          for sha in "${commits[@]}"; do
+            git diff-tree --root --no-commit-id --name-only -r "$sha" >> "$RUNNER_TEMP/replay/commit-paths.txt"
+          done
+          sort -u "$RUNNER_TEMP/replay/commit-paths.txt" -o "$RUNNER_TEMP/replay/commit-paths.txt"
+          while IFS= read -r path; do
+            if ! grep -Fxq "$path" <<< "$allowed_paths"; then
+              echo "Unexpected path in reviewed replay chain: $path" | tee -a "$status_file"
+              exit 1
+            fi
+          done < "$RUNNER_TEMP/replay/commit-paths.txt"
+
+          git remote add upstream https://github.com/AnayDhawan/UCIP.git
+          git fetch --no-tags upstream main
+          upstream_sha="$(git rev-parse upstream/main)"
+          echo "upstream_sha=$upstream_sha" >> "$RUNNER_TEMP/replay/metadata.txt"
+
+          # The replay is isolated from main and all three preservation branches.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --create ucip-replay-validation "$upstream_sha"
+
+          : > "$RUNNER_TEMP/replay/cherry-pick-results.txt"
+          for sha in "${commits[@]}"; do
+            if git cherry-pick -x --no-edit "$sha"; then
+              echo "APPLIED $sha" | tee -a "$RUNNER_TEMP/replay/cherry-pick-results.txt"
+            else
+              echo "CONFLICT_OR_EMPTY $sha" | tee -a "$RUNNER_TEMP/replay/cherry-pick-results.txt" "$status_file"
+              git cherry-pick --abort || true
+              exit 1
+            fi
+          done
+
+          git diff --name-only "$upstream_sha...HEAD" > "$RUNNER_TEMP/replay/replayed-paths.txt"
+          while IFS= read -r path; do
+            if ! grep -Fxq "$path" <<< "$allowed_paths"; then
+              echo "Unexpected replay output path: $path" | tee -a "$status_file"
+              exit 1
+            fi
+          done < "$RUNNER_TEMP/replay/replayed-paths.txt"
+
+          python -m py_compile research/field_validation/analyze_phase_a.py research/field_validation/test_analyze_phase_a.py
+          pytest -q research/field_validation/test_analyze_phase_a.py | tee "$RUNNER_TEMP/replay/phase-a-tests.txt"
+          git diff --check "$upstream_sha...HEAD"
+
+          replayed_sha="$(git rev-parse HEAD)"
+          test_summary="$(grep -Eo '[0-9]+ passed' "$RUNNER_TEMP/replay/phase-a-tests.txt" | tail -1 || true)"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          cat > research/field_validation/UPSTREAM_REPLAY_RESULT.md <<EOF
+          # UCIP isolated research replay result
+
+          - Workflow run: [$GITHUB_RUN_ID]($run_url)
+          - Rewritten upstream base: `$upstream_sha`
+          - Source preservation/audit branch snapshot: `$source_preflight_sha`
+          - Replayed source commits: ${#commits[@]} (linear chain, dependency order verified)
+          - Replay head before this report: `$replayed_sha`
+          - Phase A regression result: $test_summary
+          - Scope: only the matched-site protocol, analyzer, tests, and dedicated research CI workflow.
+          - Preservation branches: untouched.
+          - Product/frontend/pipeline files: not replayed.
+          - Field measurements, independent deployment provenance, and causal HVI validation: not established.
+
+          This is an isolated compatibility and software-regression check. A clean replay does not establish scientific validity or permission to merge into upstream.
+          EOF
+          cp research/field_validation/UPSTREAM_REPLAY_RESULT.md "$RUNNER_TEMP/replay/UPSTREAM_REPLAY_RESULT.md"
+          git add research/field_validation/UPSTREAM_REPLAY_RESULT.md
+          git commit -m "docs(research): record isolated upstream replay validation"
+          final_sha="$(git rev-parse HEAD)"
+          git status --porcelain > "$RUNNER_TEMP/replay/final-worktree.txt"
+          test ! -s "$RUNNER_TEMP/replay/final-worktree.txt"
+          printf 'final_replay_sha=%s\nreplay_branch=%s\ntest_summary=%s\n' "$final_sha" "$REMOTE_BRANCH" "$test_summary" >> "$RUNNER_TEMP/replay/metadata.txt"
+          echo "PASS: $REMOTE_BRANCH at $final_sha" | tee "$status_file"
+
+          git push origin "HEAD:refs/heads/$REMOTE_BRANCH"
+
+          cat > "$RUNNER_TEMP/replay/replay-result.json" <<EOF
+          {
+            "status": "passed",
+            "upstream_sha": "$upstream_sha",
+            "source_preflight_sha": "$source_preflight_sha",
+            "replayed_source_commit_count": ${#commits[@]},
+            "replay_head": "$replayed_sha",
+            "final_branch_sha": "$final_sha",
+            "branch": "$REMOTE_BRANCH",
+            "test_summary": "$test_summary",
+            "workflow_run": "$run_url"
+          }
+          EOF
+      - name: Preserve replay logs and result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ucip-isolated-research-replay
+          path: ${{ runner.temp }}/replay/
+          if-no-files-found: warn
+          retention-days: 30
