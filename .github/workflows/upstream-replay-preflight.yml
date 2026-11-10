@@ -21,15 +21,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          before="$(git status --porcelain)"
-          bash research/field_validation/upstream_replay_preflight.sh upstream/main HEAD | tee upstream-replay-preflight.txt
-          after="$(git status --porcelain)"
+          output="$RUNNER_TEMP/upstream-replay-preflight.txt"
+          before="$(git status --porcelain --untracked-files=all)"
+          bash research/field_validation/upstream_replay_preflight.sh upstream/main HEAD | tee "$output"
+          after="$(git status --porcelain --untracked-files=all)"
           test "$before" = "$after"
       - name: Preserve preflight output
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ucip-read-only-upstream-preflight
-          path: upstream-replay-preflight.txt
+          path: ${{ runner.temp }}/upstream-replay-preflight.txt
           if-no-files-found: ignore
           retention-days: 14
