@@ -88,3 +88,21 @@ Categories are path/subject triage, not dependency closure, semantic equivalence
 **Preservation branches remain untouched. No replay has been performed. Runtime tests on a replay branch have not been run.** No compatibility or scientific-validity claim follows from preservation or path triage alone.
 
 Next decision: manually review the 21 research-related candidates and their dependency chain before constructing any replay branch.
+
+
+## Follow-up: 10 November 2026 — refreshed candidate set and dependency review
+
+The latest read-only preflight is GitHub Actions run [#42854776440](https://github.com/stoicsatvik/UCIP/actions/runs/42854776440), against upstream `0ee822ded7e19a627934bcf4d499400ee99aea7e` and preserved/audit snapshot `e1ccf2e6c21b55e9679cfd7668a367f2bcdba774`.
+
+- Ancestry divergence: 345 upstream-only and 204 preserved-only commits. These are graph counts, not unique-patch counts.
+- Patch-non-equivalent candidates: 43 total.
+- Path classification: 17 research-only, 3 research-documentation, 1 research-mixed, 14 preflight-tooling, and 8 product/infrastructure.
+- The 21 research-related candidates form one linear dependency chain from `202cfc2e2349df60164f1373d5650ad2929799ee` through `7975bba4280ff257d7d781043f84f25681dbcb8f`. Parent links were checked commit by commit.
+- The one mixed commit, `ca4efc17746029c3bd0bbc8b8ae9f733de3b6c32`, changes only the Phase A research workflow, research schema, analyzer, and research tests. It does not touch product/frontend/pipeline code. It is included in the isolated replay set because later research commits depend on its manifest and pair-mapping changes.
+- The three documentation candidates are confined to the Phase A field-pilot and deployment-manifest research documents. The 17 research-only candidates modify the analyzer and its tests.
+
+A new read-only CI workflow, `.github/workflows/upstream-research-replay.yml`, now tests this exact 21-commit chain on a temporary branch based on the current rewritten upstream main. It verifies the linear parent chain and path allowlist, cherry-picks in dependency order, runs the Phase A regression suite, and pushes a separate fork branch only if every check passes. It does not modify main or any preservation branch.
+
+The first workflow attempt, run [#42859498812](https://github.com/stoicsatvik/UCIP/actions/runs/42859498812), failed before replay because one manifest SHA was missing its final character. The artifact was retained; the SHA and shell escaping were corrected in commit `fbc628ca0e22953e9422097c00cecd912b198e74`. The corrected run [#42859637487](https://github.com/stoicsatvik/UCIP/actions/runs/42859637487) is the authoritative replay attempt and is pending at the time of this update.
+
+No destructive sync, force push, merge, or change to the three preserved branch tips has been performed. A clean software replay would establish patch compatibility only, not scientific validity or permission to submit/merge the research into upstream.
