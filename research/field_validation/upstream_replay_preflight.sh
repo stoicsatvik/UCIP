@@ -19,7 +19,7 @@ printf 'upstream_sha=%s\n' "$(git rev-parse "${upstream}^{commit}")"
 printf 'preserved_sha=%s\n' "$(git rev-parse "${preserved}^{commit}")"
 printf '\n=== divergence (not unique-patch counts) ===\n'
 git rev-list --left-right --count "$upstream...$preserved"
-printf '\n=== patch-equivalent candidate commits (review manually) ===\n'
+printf '\n=== candidate commits not patch-equivalent to upstream (review manually) ===\n'
 git log --cherry-pick --right-only --no-merges --format='%H %s' "$upstream...$preserved"
 printf '\n=== changed paths (not a replay plan) ===\n'
 git diff --name-status "$upstream" "$preserved"
