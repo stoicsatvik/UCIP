@@ -8,7 +8,7 @@ Preserved branch references (do not force-push or delete):
 - `preservation/field-validation-pre-upstream-rewrite-20261110`
 - `preservation/dashboard-pre-upstream-rewrite-20261110`
 
-On 2026-11-10 the uncertainty-gate preservation branch compared **identical** to `research/uncertainty-gate-20261015` (0 ahead, 0 behind, 0 changed files). This validates branch-tip equivalence for that pair only. Other preservation branches were created in the prior run; their tip equivalence has not been rechecked in this audit.
+On 2026-11-10 the uncertainty-gate preservation branch compared **identical** to `research/uncertainty-gate-20261015` (0 ahead, 0 behind, 0 changed files). This validates branch-tip equivalence for that pair only. The field-validation and dashboard preservation refs were rechecked against their respective source branches on 2026-11-10: both comparisons returned `identical`, 0 ahead, 0 behind, and 0 changed files. All three preservation branch tips are now verified equivalent to their source branch tips. This verifies refs, not independently exported backups.
 
 ## Falsifiable migration experiment (not yet executed)
 1. Record exact SHAs of all preservation refs and the current rewritten upstream default branch. Export immutable backups before any rewrite.
@@ -18,7 +18,7 @@ On 2026-11-10 the uncertainty-gate preservation branch compared **identical** to
 5. Accept replay only if expected research files and tests survive, no unexpected tracked files are removed, and regression tests pass. Otherwise retain the original preserved branches and document failed cases.
 
 ## Current result and limitations
-**Preservation equivalence: PASS** for uncertainty-gate source vs preservation ref.
+**Preservation branch-tip equivalence: PASS** for uncertainty-gate, field-validation, and dashboard source/preservation pairs (GitHub compare API; 0/0 commits, zero changed files for each).
 **Upstream replay: NOT RUN.** **Runtime tests: NOT RUN.** **Unique-patch classification: NOT DONE.**
 No compatibility or scientific validity claim follows from preservation alone.
 
