@@ -116,7 +116,19 @@ jobs:
           done
 
           git diff --name-only "$upstream_sha...HEAD" > "$RUNNER_TEMP/replay/replayed-paths.txt"
-          replay_allowed_paths=
+          while IFS= read -r path; do
+            case "$path" in
+              docs/UCIP_FIELD_PILOT.md|research/field_validation/DEPLOYMENT_MANIFEST_SCHEMA.md|research/field_validation/analyze_phase_a.py|research/field_validation/test_analyze_phase_a.py) ;;
+              *)
+                echo "Unexpected replay output path: $path" | tee -a "$status_file"
+                exit 1
+                ;;
+            esac
+          done < "$RUNNER_TEMP/replay/replayed-paths.txt"
+          if git log --format= --name-only "$upstream_sha..HEAD" | grep -q "^.github/workflows/"; then
+            echo "Workflow files must remain outside the replay branch" | tee -a "$status_file"
+            exit 1
+          fi
           python -m py_compile research/field_validation/analyze_phase_a.py research/field_validation/test_analyze_phase_a.py
           pytest -q research/field_validation/test_analyze_phase_a.py | tee "$RUNNER_TEMP/replay/phase-a-tests.txt"
           git diff --check "$upstream_sha...HEAD"
