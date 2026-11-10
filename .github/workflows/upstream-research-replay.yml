@@ -6,7 +6,7 @@ on:
     paths:
       - .github/workflows/upstream-research-replay.yml
 permissions:
-  contents: write
+  contents: read
 jobs:
   replay:
     runs-on: ubuntu-latest
@@ -146,7 +146,7 @@ jobs:
           - Replay head before this report: $replayed_sha
           - Phase A regression result: $test_summary
           - Scope: matched-site protocol, analyzer, tests, and schema documentation only; the dedicated Phase A workflow file is intentionally omitted because the GitHub App token cannot push workflow-file changes. This replay workflow runs the research tests directly.
-          - Preservation branches: untouched.
+          - Remote branch push: not attempted by this workflow; GitHub App lacks workflow-history push permission.\n          - Preservation branches: untouched.
           - Product/frontend/pipeline files: not replayed.
           - Field measurements, independent deployment provenance, and causal HVI validation: not established.
 
@@ -159,9 +159,7 @@ jobs:
           git status --porcelain > "$RUNNER_TEMP/replay/final-worktree.txt"
           test ! -s "$RUNNER_TEMP/replay/final-worktree.txt"
           printf 'final_replay_sha=%s\nreplay_branch=%s\ntest_summary=%s\n' "$final_sha" "$REMOTE_BRANCH" "$test_summary" >> "$RUNNER_TEMP/replay/metadata.txt"
-          echo "PASS: $REMOTE_BRANCH at $final_sha" | tee "$status_file"
-
-          git push origin "HEAD:refs/heads/$REMOTE_BRANCH"
+          echo "PASS: isolated replay validated; local branch $REMOTE_BRANCH at $final_sha (no remote push attempted)" | tee "$status_file"
 
           cat > "$RUNNER_TEMP/replay/replay-result.json" <<EOF
           {
