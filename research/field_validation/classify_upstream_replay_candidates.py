@@ -25,14 +25,21 @@ def classify_paths(paths: list[str], subject: str = "") -> dict:
         ".github/workflows/upstream-replay-preflight",
         "research/field_validation/classify_upstream_replay_candidates.py",
         "tests/test_ucip_replay_classification.py",
+        "docs/upstream-rewrite-migration-audit-20261110.md",
     )
     is_preflight_tooling = (
         "preflight" in lower
         or "candidate classifier" in lower
         or any(marker in path for marker in tooling_markers for path in lowered_paths)
     )
+    is_research_documentation = (
+        lowered_paths == ["docs/ucip_field_pilot.md"]
+        and "research" in lower
+    )
     if is_preflight_tooling:
         category = "preflight_tooling"
+    elif is_research_documentation:
+        category = "research_documentation"
     elif not paths:
         category = "empty"
     elif roots == ["research"]:

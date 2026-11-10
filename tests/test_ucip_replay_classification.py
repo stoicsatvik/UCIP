@@ -44,6 +44,20 @@ class CandidatePathClassificationTests(unittest.TestCase):
         )
         self.assertEqual(result["category"], "preflight_tooling")
 
+    def test_ucip_field_pilot_research_doc_is_classified_separately(self):
+        result = classify_paths(
+            ["docs/UCIP_FIELD_PILOT.md"],
+            "docs(research): record identifier guard and validation limits",
+        )
+        self.assertEqual(result["category"], "research_documentation")
+
+    def test_migration_audit_doc_is_preflight_tooling(self):
+        result = classify_paths(
+            ["docs/upstream-rewrite-migration-audit-20261110.md"],
+            "docs: record UCIP preservation evidence and replay gate",
+        )
+        self.assertEqual(result["category"], "preflight_tooling")
+
     def test_empty_commit_is_explicit(self):
         result = classify_paths([], "empty commit")
         self.assertEqual(result["category"], "empty")
