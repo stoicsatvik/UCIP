@@ -7,6 +7,7 @@ on:
       - .github/workflows/upstream-research-replay.yml
 permissions:
   contents: read
+# Publication is artifact-only: the isolated replay branch is never pushed to any remote.
 jobs:
   replay:
     runs-on: ubuntu-latest
