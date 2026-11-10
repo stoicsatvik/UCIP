@@ -44,7 +44,7 @@ jobs:
             97e37b44badb7e788375e6b718f09da9b57983d6
             2c147427f05cd2d5ebbd13b9c26c510f53b993a0
             3e0b267700982a4af35e3896b44d1d2461d2dd4b
-            b03cf2d4d60b7e1073ba7b67127e7ac37784e77
+            b03cf2d4d60b7e1073ba7b67127e7ac37784e77a
             aa0d0050c67171f0a5947cdc8c9238e88edbf560
             c3beb4051139c58239b2cd63567e6d88eb859a86
             8fd7606c253cc53798da8a7fa01f12a883d9fa74
@@ -127,10 +127,10 @@ jobs:
           # UCIP isolated research replay result
 
           - Workflow run: [$GITHUB_RUN_ID]($run_url)
-          - Rewritten upstream base: `$upstream_sha`
-          - Source preservation/audit branch snapshot: `$source_preflight_sha`
+          - Rewritten upstream base: $upstream_sha
+          - Source preservation/audit branch snapshot: $source_preflight_sha
           - Replayed source commits: ${#commits[@]} (linear chain, dependency order verified)
-          - Replay head before this report: `$replayed_sha`
+          - Replay head before this report: $replayed_sha
           - Phase A regression result: $test_summary
           - Scope: only the matched-site protocol, analyzer, tests, and dedicated research CI workflow.
           - Preservation branches: untouched.
