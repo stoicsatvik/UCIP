@@ -16,7 +16,21 @@
 
 The replay and regression checks passed, but the original workflow revision then attempted to push the isolated replay branch to the fork. GitHub rejected that push because the GitHub App token lacked `workflows` permission for `.github/workflows/alert-on-failure.yml`, which is present in rewritten upstream but not in the fork's main branch. The workflow run therefore ended red **after** the replay tests passed. The remote replay branch was not created.
 
-The current replay workflow revision has since been changed to artifact-only publication: it uses read-only contents permission and does not attempt the blocked push. This report preserves the original failure rather than relabeling the historical run as green. A successful rerun of the current workflow revision is not claimed here.
+The replay workflow was then changed to artifact-only publication: it uses read-only contents permission and never attempts the blocked push. The original publication failure remains preserved as a historical negative result; the successful rerun is recorded below.
+
+## Successful artifact-only rerun — 10 November 2026
+
+- Workflow run: [#42875507558](https://github.com/stoicsatvik/UCIP/actions/runs/42875507558), completed successfully.
+- Current rewritten upstream base: `500c3d793b89a538aac7680a270f4ef19c722685`.
+- Source preflight branch snapshot: `dcb7bfe66a95c8437ea2092c921e202e43e2ecb7`.
+- The reviewed 21-commit linear research chain replayed without cherry-pick conflicts. The mixed workflow/schema commit was path-split to retain research code, schema and tests while omitting its dedicated workflow file.
+- Replay head before the generated result note: `2e464b898b9c32c02f8d47a8b7c6ffc47f4eef9b`.
+- Final local replay branch SHA: `42d6e0f73f54cccbb8a29119ba09e77ab058ecbf`.
+- Phase A regression suite: **33 passed in 1.24 s**. Python compilation, `git diff --check`, path allowlist checks and clean-worktree verification also passed.
+- Artifact: [ucip-isolated-research-replay.zip](https://github.com/stoicsatvik/UCIP/actions/runs/42875507558/artifacts/13791781928), SHA-256 `3776e1bec2edfd98e09bf4146335387ae04653a29aed5afe633ab10dc0315d84`.
+- Publication remains artifact-only. No remote replay branch was pushed; all three preservation branches remain untouched.
+
+This is a successful software-compatibility replay against the current rewritten-upstream SHA, not scientific validation, a merge, or permission to publish the replay into upstream.
 
 ## Scope and limits
 
