@@ -57,7 +57,6 @@ The 17 research-only candidates are:
 | \`aa0d0050c6\` | docs(research): specify auditable deployment manifest gate |
 | \`b03cf2d4d6\` | test(research): reject eight-day campaign despite four eligible pairs |
 | \`2c147427f0\` | fix(research): make seven-calendar-day campaign window a fail-closed aggregate gate |
-| \`97e37b44ba\` | docs(research): record identifier guard and validation limits |
 | \`8d04206392\` | fix(research): reject missing and blank site identifiers before joins |
 | \`1f4a96e13c\` | test(UCIP): cover calibration, missingness, negative results and burst cadence |
 | \`b66e73954f\` | research(UCIP): add fail-closed matched-site temperature analysis |
