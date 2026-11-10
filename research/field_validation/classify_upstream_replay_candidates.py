@@ -1,7 +1,7 @@
 """Read-only path triage for commits not patch-equivalent to rewritten UCIP upstream.
 
 This is a review aid only. Path categories do not establish dependency closure,
-semantic compatibility, or permission to replay a commit.
+semantic compatibility, or permission to replay.
 """
 from __future__ import annotations
 
@@ -20,7 +20,18 @@ def git(*args: str) -> str:
 def classify_paths(paths: list[str], subject: str = "") -> dict:
     roots = sorted({path.split("/", 1)[0] if "/" in path else "<root>" for path in paths})
     lower = subject.lower()
-    if "preflight" in lower or "candidate classifier" in lower:
+    lowered_paths = [path.lower() for path in paths]
+    tooling_markers = (
+        ".github/workflows/upstream-replay-preflight",
+        "research/field_validation/classify_upstream_replay_candidates.py",
+        "tests/test_ucip_replay_classification.py",
+    )
+    is_preflight_tooling = (
+        "preflight" in lower
+        or "candidate classifier" in lower
+        or any(marker in path for marker in tooling_markers for path in lowered_paths)
+    )
+    if is_preflight_tooling:
         category = "preflight_tooling"
     elif not paths:
         category = "empty"
