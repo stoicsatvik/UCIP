@@ -106,3 +106,12 @@ A new read-only CI workflow, `.github/workflows/upstream-research-replay.yml`, n
 The first workflow attempt, run [#42859498812](https://github.com/stoicsatvik/UCIP/actions/runs/42859498812), failed before replay because one manifest SHA was missing its final character. The artifact was retained; the SHA and shell escaping were corrected in commit `fbc628ca0e22953e9422097c00cecd912b198e74`. The corrected run [#42859637487](https://github.com/stoicsatvik/UCIP/actions/runs/42859637487) is the authoritative replay attempt and is pending at the time of this update.
 
 No destructive sync, force push, merge, or change to the three preserved branch tips has been performed. A clean software replay would establish patch compatibility only, not scientific validity or permission to submit/merge the research into upstream.
+
+
+### Isolated replay attempt 2: code passes, push authorization blocked
+
+Run [#42859637487](https://github.com/stoicsatvik/UCIP/actions/runs/42859637487) applied all 21 source commits in dependency order onto the fetched rewritten upstream main. There were no cherry-pick conflicts or empty commits. The replayed Phase A suite passed **33 tests in 0.90 seconds**, Python compilation passed, the final diff stayed within the research allowlist, and the local worktree was clean. The runner created replay commit `167c09f0b07d5dc031be474e8c5b6b9b7d0df8e2`.
+
+The remote branch push was rejected because the GitHub App token lacks the separate `workflows` permission required to push the mixed source commit's `.github/workflows/phase-a-research.yml`. This is an authorization failure after successful replay and tests, not a cherry-pick or research-test failure. Artifact [#13783024951](https://github.com/stoicsatvik/UCIP/actions/runs/42859637487) preserves the complete run receipt.
+
+The replay workflow now path-splits that mixed commit: it retains the research schema, analyzer, and tests while omitting the dedicated Phase A workflow file. The same research suite is executed directly by the replay workflow. The resulting branch will contain no workflow-file changes, so no extra permission is needed. This keeps the compatibility experiment isolated and does not weaken the research tests.
