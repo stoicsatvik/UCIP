@@ -1,0 +1,35 @@
+name: UCIP read-only upstream replay preflight
+on:
+  push:
+    branches:
+      - research/ucip-replay-preflight-20261110
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch rewritten upstream main
+        run: |
+          git remote add upstream https://github.com/AnayDhawan/UCIP.git
+          git fetch --no-tags --prune upstream main
+      - name: Run read-only replay preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="$(git status --porcelain)"
+          bash research/field_validation/upstream_replay_preflight.sh upstream/main HEAD | tee upstream-replay-preflight.txt
+          after="$(git status --porcelain)"
+          test "$before" = "$after"
+      - name: Preserve preflight output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ucip-read-only-upstream-preflight
+          path: upstream-replay-preflight.txt
+          if-no-files-found: ignore
+          retention-days: 14
