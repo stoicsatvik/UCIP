@@ -117,3 +117,32 @@ Run [#42859637487](https://github.com/stoicsatvik/UCIP/actions/runs/42859637487)
 The remote branch push was rejected because the GitHub App token lacks the separate `workflows` permission required to push the mixed source commit's `.github/workflows/phase-a-research.yml`. This is an authorization failure after successful replay and tests, not a cherry-pick or research-test failure. Artifact [#13783024951](https://github.com/stoicsatvik/UCIP/actions/runs/42859637487) preserves the complete run receipt.
 
 The replay workflow now path-splits that mixed commit: it retains the research schema, analyzer, and tests while omitting the dedicated Phase A workflow file. The same research suite is executed directly by the replay workflow. The resulting branch will contain no workflow-file changes, so no extra permission is needed. This keeps the compatibility experiment isolated and does not weaken the research tests.
+
+
+## Follow-up: 11 November 2026 — exact preflight of all preserved branches
+
+The previous read-only preflight workflow compared the audit/tooling branch `HEAD` with rewritten upstream. That was useful for validating the classifier, but it did **not** independently re-run the preflight against each preserved research/product branch. The workflow now fetches the three source/preservation pairs, verifies each preservation ref is exactly equal to its source branch tip, and runs the read-only preflight plus path-only candidate classifier against each preserved ref. It does not checkout, reset, rebase, cherry-pick, push, or modify any preserved ref.
+
+Exact-head workflow: [#42951221494](https://github.com/stoicsatvik/UCIP/actions/runs/42951221494). The workflow and Phase A PR checks passed; the classifier suite passed **11/11**. Artifact [#13825192105](https://github.com/stoicsatvik/UCIP/actions/runs/42951221494/artifacts/13825192105), SHA-256 `82266e6ee3e6782ce38d7682404b7d4158f3a0811375172f8750f2dbdfdd8ba6`, contains one preflight log and one machine-readable candidate report for each preserved branch.
+
+The upstream main SHA was `500c3d793b89a538aac7680a270f4ef19c722685`. All three preservation refs still exactly match their source branch tips:
+
+| Source branch | Preserved branch | Preserved SHA | Source-tip comparison |
+|---|---|---|---|
+| `research/field-validation-protocol-20261013` | `preservation/field-validation-pre-upstream-rewrite-20261110` | `aa208482a9cc92bfd8a116c228b43d501aab27f3` | identical, 0 ahead / 0 behind |
+| `research/uncertainty-gate-20261015` | `preservation/uncertainty-gate-pre-upstream-rewrite-20261110` | `7975bba4280ff257d7d781043f84f25681dbcb8f` | identical, 0 ahead / 0 behind |
+| `codex/ucip-dashboard-issues` | `preservation/dashboard-pre-upstream-rewrite-20261110` | `22d5fe9a3d2e650ec4735250c4a86eba922b39b3` | identical, 0 ahead / 0 behind |
+
+Current preserved-branch preflight results (ancestry counts are not unique-patch counts):
+
+| Preserved branch | Upstream-only | Preserved-only | Patch-non-equivalent candidates | Path-only candidate categories |
+|---|---:|---:|---:|---|
+| Field validation | 348 | 183 | 22 | 11 research-only, 3 research-documentation, 8 product/infrastructure |
+| Uncertainty gate | 348 | 190 | 29 | 17 research-only, 3 research-documentation, 1 research-mixed, 8 product/infrastructure |
+| Dashboard | 348 | 171 | 10 | 10 product/infrastructure |
+
+The fork's `main` remains on the pre-rewrite history: current cross-repository comparison reports **169 fork-only / 348 upstream-only** commits. This is a graph relationship, not a unique-patch count. Do not force-sync, delete, rebase, or merge the fork's main branch. The successful 21-commit isolated Phase A replay remains a separate, artifact-only compatibility result; it does not authorize publishing or merging that replay.
+
+The classifier's categories are path/subject triage only. The 22/29/10 candidates are not replay plans, dependency-closed sets, or proof of incompatibility. In particular, the single mixed uncertainty-gate candidate still requires path-level review, and all research-only candidates require dependency and semantic review before any isolated replay. No remote replay branch was pushed and no preservation branch was changed.
+
+Communication note: the factual acknowledgement sent from BuildWithSatvik to the GitHub notification address `notifications@github.com` after the maintainer's Discussion #264 notice was rejected with SMTP `554 5.2.2 mailbox full`. No retry or alternate-address outreach was made. The maintainer's history-rewrite instruction was followed conservatively by preserving the old refs and avoiding force-sync.
