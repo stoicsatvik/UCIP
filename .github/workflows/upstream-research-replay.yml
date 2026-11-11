@@ -1,5 +1,6 @@
 name: UCIP isolated research replay validation
 on:
+  workflow_dispatch:
   push:
     branches:
       - research/ucip-replay-preflight-20261110
@@ -8,6 +9,7 @@ on:
 permissions:
   contents: read
 # Publication is artifact-only: the isolated replay branch is never pushed to any remote.
+# Manual dispatch allows a fresh replay against the current upstream/main without rewriting fork refs.
 jobs:
   replay:
     runs-on: ubuntu-latest
