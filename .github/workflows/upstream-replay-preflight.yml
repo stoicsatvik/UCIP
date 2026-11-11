@@ -1,0 +1,75 @@
+name: UCIP read-only upstream replay preflight
+on:
+  push:
+    branches:
+      - research/ucip-replay-preflight-20261110
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch rewritten upstream and exact fork preservation refs
+        run: |
+          set -euo pipefail
+          git remote add upstream https://github.com/AnayDhawan/UCIP.git
+          git fetch --no-tags --prune upstream main
+          git fetch --no-tags origin \
+            refs/heads/research/field-validation-protocol-20261013:refs/remotes/origin/research/field-validation-protocol-20261013 \
+            refs/heads/preservation/field-validation-pre-upstream-rewrite-20261110:refs/remotes/origin/preservation/field-validation-pre-upstream-rewrite-20261110 \
+            refs/heads/research/uncertainty-gate-20261015:refs/remotes/origin/research/uncertainty-gate-20261015 \
+            refs/heads/preservation/uncertainty-gate-pre-upstream-rewrite-20261110:refs/remotes/origin/preservation/uncertainty-gate-pre-upstream-rewrite-20261110 \
+            refs/heads/codex/ucip-dashboard-issues:refs/remotes/origin/codex/ucip-dashboard-issues \
+            refs/heads/preservation/dashboard-pre-upstream-rewrite-20261110:refs/remotes/origin/preservation/dashboard-pre-upstream-rewrite-20261110
+      - name: Verify preservation refs still match their source branch tips
+        run: |
+          set -euo pipefail
+          pairs=(
+            "research/field-validation-protocol-20261013 preservation/field-validation-pre-upstream-rewrite-20261110"
+            "research/uncertainty-gate-20261015 preservation/uncertainty-gate-pre-upstream-rewrite-20261110"
+            "codex/ucip-dashboard-issues preservation/dashboard-pre-upstream-rewrite-20261110"
+          )
+          for pair in "${pairs[@]}"; do
+            read -r source preserved <<< "$pair"
+            source_sha="$(git rev-parse "refs/remotes/origin/$source^{commit}")"
+            preserved_sha="$(git rev-parse "refs/remotes/origin/$preserved^{commit}")"
+            printf '%s %s %s\n' "$source" "$preserved" "$preserved_sha"
+            test "$source_sha" = "$preserved_sha"
+          done
+      - name: Run read-only preflight against all preserved branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="$(git status --porcelain --untracked-files=all)"
+          preserved_refs=(
+            "preservation/field-validation-pre-upstream-rewrite-20261110"
+            "preservation/uncertainty-gate-pre-upstream-rewrite-20261110"
+            "preservation/dashboard-pre-upstream-rewrite-20261110"
+          )
+          for preserved in "${preserved_refs[@]}"; do
+            ref="refs/remotes/origin/$preserved"
+            slug="${preserved//\//-}"
+            bash research/field_validation/upstream_replay_preflight.sh upstream/main "$ref" \
+              > "$RUNNER_TEMP/ucip-$slug-preflight.txt"
+            python -m research.field_validation.classify_upstream_replay_candidates \
+              upstream/main "$ref" > "$RUNNER_TEMP/ucip-$slug-candidates.json"
+            printf 'completed_preflight=%s\n' "$preserved"
+          done
+          after="$(git status --porcelain --untracked-files=all)"
+          test "$before" = "$after"
+      - name: Test candidate path classifier
+        run: python -m unittest discover -s tests -p 'test_ucip_replay_classification.py' -v
+      - name: Preserve read-only preflight and classification
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ucip-preserved-branch-preflight
+          path: |
+            ${{ runner.temp }}/ucip-*-preflight.txt
+            ${{ runner.temp }}/ucip-*-candidates.json
+          if-no-files-found: ignore
+          retention-days: 30
